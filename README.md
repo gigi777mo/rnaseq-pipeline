@@ -4,6 +4,8 @@
 
 From raw FASTQ to differential expression, with **spike-ins**, **RUVSeq**, and **SVA/svaseq** batch correction.
 
+Built on highly cited methods: **Salmon**, **tximport**, **DESeq2**, **RUVSeq**, **svaseq** (see [docs/CITATIONS.md](docs/CITATIONS.md)).
+
 **Core path:**  
 **QC** → Trimming → Quantification (Salmon / STAR) → Spike-in QC → **RUVSeq or SVA** → DESeq2
 
@@ -114,6 +116,7 @@ results/sva/
 
 ## Documentation
 
+- **[Citations (all methods)](docs/CITATIONS.md)**
 - [RUVSeq (RUVg / RUVs / RUVr)](docs/ruvseq.md)
 - [SVA / svaseq / ComBat-seq](docs/sva.md)
 - [Spike-in controls](docs/spikein.md)
@@ -124,11 +127,13 @@ results/sva/
 
 ## Citation
 
+If you use this pipeline, please cite the underlying tools listed in **[docs/CITATIONS.md](docs/CITATIONS.md)**. Key papers:
+
 - Salmon — Patro et al., Nat Methods 2017  
 - DESeq2 — Love et al., Genome Biol 2014  
+- tximport — Soneson et al., F1000Research 2015  
 - RUVSeq — Risso et al., Nat Biotechnol 2014  
-- svaseq / SVA — Leek, Nucleic Acids Res 2014; Leek & Storey, PLoS Genet 2007  
-- ComBat / ComBat-seq — Johnson et al.; Zhang et al.
+- svaseq — Leek, Nucleic Acids Res 2014  
 
 ---
 
