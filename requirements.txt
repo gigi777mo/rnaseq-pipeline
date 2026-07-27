@@ -1,0 +1,7 @@
+# Python layer only — Salmon/STAR/fastp etc. still need conda/bioconda or system installs
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+seaborn>=0.12
+pyyaml>=6.0
+multiqc>=1.14
