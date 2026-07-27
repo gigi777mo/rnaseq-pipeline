@@ -32,4 +32,4 @@ dependencies:
   - bioconductor-apeglm
   - bioconductor-ruvseq
   - bioconductor-edger
-  - bioconductor-eeseq
+  - bioconductor-sva

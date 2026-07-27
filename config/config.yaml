@@ -26,26 +26,27 @@ spikein:
   fasta: "/path/to/ERCC92.fa"
   concentration_table: ""
   id_prefix: "ERCC-"
-  # Simple alternative to full RUV (generally less powerful than RUVg)
   normalization: none            # none | size_factor
 
 # ---------- RUVSeq (Remove Unwanted Variation) ----------
-# Full control of RUVg / RUVs / RUVr
 ruv:
-  enabled: false                 # set true to run RUV normalization / factor estimation
+  enabled: false
   method: ruvg                   # ruvg | ruvs | ruvr
-  k: 1                           # number of unwanted factors to estimate
-  # For RUVg: how to define negative control genes
-  #   spikein  – use transcripts matching spikein.id_prefix
-  #   empirical – least DE genes from a first-pass analysis
-  #   custom   – supply a file of gene/transcript IDs
+  k: 1
   controls: spikein              # spikein | empirical | custom
-  custom_controls_file: ""       # path to txt/csv of control IDs (one per line) if controls: custom
-  # For RUVs: column in samples.csv that defines replicate groups
-  replicate_column: ""           # e.g. patient_id or lib_id
-  # Whether to add estimated W factors into the DESeq2 design
+  custom_controls_file: ""
+  replicate_column: ""
   add_to_design: true
-  # Produce diagnostic plots (RLE + PCA before/after)
+  diagnostics: true
+
+# ---------- SVA / svaseq / ComBat-seq ----------
+sva:
+  enabled: false
+  method: svaseq                 # svaseq | combat_seq
+  n_sv: null                     # null = estimate with num.sv; or integer
+  num_sv_method: be              # be | leek
+  batch_column: batch            # for combat_seq (must exist in samples.csv)
+  add_to_design: true
   diagnostics: true
 
 # Trimming (fastp)
