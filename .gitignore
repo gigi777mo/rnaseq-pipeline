@@ -1,0 +1,12 @@
+results/
+data/raw/
+*.fastq.gz
+*.bam
+*.bai
+*.quant.sf
+.snakemake/
+__pycache__/
+*.pyc
+.DS_Store
+.Rhistory
+.RData

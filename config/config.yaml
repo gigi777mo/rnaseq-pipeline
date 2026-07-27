@@ -1,0 +1,41 @@
+# RNA-seq pipeline configuration
+
+# Reference
+genome: human                    # human or mouse
+quantifier: salmon               # salmon (recommended) or star
+
+# Paths (update these)
+salmon_index: "/path/to/salmon_index"
+star_index: "/path/to/star_index"
+gtf: "/path/to/genes.gtf"        # needed for STAR + featureCounts and annotation
+
+# Sample sheet
+samples: "data/samples.csv"
+
+# Trimming (fastp)
+fastp:
+  qualified_quality_phred: 20
+  length_required: 30
+  detect_adapter_for_pe: true
+
+# Salmon options
+salmon:
+  libtype: "A"                   # automatic
+  extra: "--gcBias --seqBias"
+
+# STAR options
+star:
+  extra: ""
+
+# DESeq2
+deseq2:
+  design: "~ condition"          # e.g. "~ batch + condition"
+  reference_level: "control"     # reference level for the condition factor
+  fdr_cutoff: 0.05
+  lfc_cutoff: 1.0                # |log2FC| threshold for calling significant
+  min_counts: 10                 # genes must have at least this many counts in total
+
+# Resources
+resources:
+  threads: 8
+  memory_gb: 32

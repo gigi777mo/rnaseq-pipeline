@@ -1,0 +1,30 @@
+name: rnaseq
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - pyyaml
+  - snakemake >=8.0
+  # QC & trimming
+  - fastqc
+  - multiqc
+  - fastp
+  # Quantification
+  - salmon >=1.10
+  - star >=2.7.11
+  - subread          # featureCounts
+  - samtools
+  # R & Bioconductor (for DESeq2)
+  - r-base >=4.3
+  - r-tidyverse
+  - r-ggplot2
+  - r-pheatmap
+  - bioconductor-deseq2
+  - bioconductor-tximport
+  - bioconductor-tximeta
+  - bioconductor-enhancedvolcano
+  - bioconductor-apeglm

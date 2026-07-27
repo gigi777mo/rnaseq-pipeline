@@ -1,0 +1,149 @@
+# RNA-seq Snakemake workflow
+# Supports Salmon (default) or STAR + featureCounts
+
+import pandas as pd
+from pathlib import Path
+
+configfile: "config/config.yaml"
+
+samples = pd.read_csv(config["samples"]).set_index("sample", drop=False)
+SAMPLES = samples.index.tolist()
+
+QUANTIFIER = config.get("quantifier", "salmon")
+THREADS = config.get("resources", {}).get("threads", 8)
+
+rule all:
+    input:
+        "results/qc/multiqc_report.html",
+        expand("results/trimmed/{sample}_R1.fastq.gz", sample=SAMPLES),
+        expand("results/trimmed/{sample}_R2.fastq.gz", sample=SAMPLES),
+        "results/deseq2/results.csv" if QUANTIFIER == "salmon" else "results/counts/counts.txt",
+        "results/deseq2/pca.pdf",
+
+
+# ---------- QC ----------
+rule fastqc_raw:
+    input:
+        r1 = "data/raw/{sample}_R1.fastq.gz",
+        r2 = "data/raw/{sample}_R2.fastq.gz",
+    output:
+        touch("results/qc/raw/{sample}.done"),
+    threads: 2
+    shell:
+        """
+        mkdir -p results/qc/raw
+        fastqc -t {threads} -o results/qc/raw {input.r1} {input.r2}
+        touch {output}
+        """
+
+rule multiqc:
+    input:
+        expand("results/qc/raw/{sample}.done", sample=SAMPLES),
+    output:
+        "results/qc/multiqc_report.html",
+    shell:
+        """
+        multiqc results/qc/raw -o results/qc --force
+        """
+
+
+# ---------- Trimming ----------
+rule fastp:
+    input:
+        r1 = "data/raw/{sample}_R1.fastq.gz",
+        r2 = "data/raw/{sample}_R2.fastq.gz",
+    output:
+        r1 = "results/trimmed/{sample}_R1.fastq.gz",
+        r2 = "results/trimmed/{sample}_R2.fastq.gz",
+        html = "results/trimmed/{sample}.fastp.html",
+        json = "results/trimmed/{sample}.fastp.json",
+    threads: THREADS
+    params:
+        qual = config.get("fastp", {}).get("qualified_quality_phred", 20),
+        length = config.get("fastp", {}).get("length_required", 30),
+    shell:
+        """
+        fastp \
+          -i {input.r1} -I {input.r2} \
+          -o {output.r1} -O {output.r2} \
+          -h {output.html} -j {output.json} \
+          --qualified_quality_phred {params.qual} \
+          --length_required {params.length} \
+          --detect_adapter_for_pe \
+          -w {threads}
+        """
+
+
+# ---------- Salmon ----------
+rule salmon_quant:
+    input:
+        r1 = "results/trimmed/{sample}_R1.fastq.gz",
+        r2 = "results/trimmed/{sample}_R2.fastq.gz",
+    output:
+        quant = "results/salmon/{sample}/quant.sf",
+    threads: THREADS
+    params:
+        index = config["salmon_index"],
+        libtype = config.get("salmon", {}).get("libtype", "A"),
+        extra = config.get("salmon", {}).get("extra", "--gcBias --seqBias"),
+    shell:
+        """
+        salmon quant \
+          -i {params.index} \
+          -l {params.libtype} \
+          -1 {input.r1} -2 {input.r2} \
+          -o results/salmon/{wildcards.sample} \
+          -p {threads} \
+          {params.extra}
+        """
+
+
+# ---------- STAR (optional path) ----------
+rule star_align:
+    input:
+        r1 = "results/trimmed/{sample}_R1.fastq.gz",
+        r2 = "results/trimmed/{sample}_R2.fastq.gz",
+    output:
+        bam = "results/star/{sample}/Aligned.sortedByCoord.out.bam",
+    threads: THREADS
+    params:
+        index = config["star_index"],
+        extra = config.get("star", {}).get("extra", ""),
+    shell:
+        """
+        STAR \
+          --genomeDir {params.index} \
+          --readFilesIn {input.r1} {input.r2} \
+          --readFilesCommand zcat \
+          --outFileNamePrefix results/star/{wildcards.sample}/ \
+          --outSAMtype BAM SortedByCoordinate \
+          --runThreadN {threads} \
+          {params.extra}
+        """
+
+
+# ---------- DESeq2 ----------
+rule deseq2:
+    input:
+        quants = expand("results/salmon/{sample}/quant.sf", sample=SAMPLES) if QUANTIFIER == "salmon" else [],
+        samples = config["samples"],
+    output:
+        results = "results/deseq2/results.csv",
+        pca = "results/deseq2/pca.pdf",
+        volcano = "results/deseq2/volcano.pdf",
+    params:
+        design = config["deseq2"]["design"],
+        ref = config["deseq2"]["reference_level"],
+        fdr = config["deseq2"]["fdr_cutoff"],
+        lfc = config["deseq2"]["lfc_cutoff"],
+    shell:
+        """
+        Rscript scripts/deseq2_analysis.R \
+          --salmon_dir results/salmon \
+          --samples {input.samples} \
+          --design "{params.design}" \
+          --reference {params.ref} \
+          --fdr {params.fdr} \
+          --lfc {params.lfc} \
+          --out results/deseq2
+        """
