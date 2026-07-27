@@ -16,15 +16,20 @@ dependencies:
   # Quantification
   - salmon >=1.10
   - star >=2.7.11
-  - subread          # featureCounts
+  - subread
   - samtools
-  # R & Bioconductor (for DESeq2)
+  # R & Bioconductor
   - r-base >=4.3
   - r-tidyverse
   - r-ggplot2
   - r-pheatmap
+  - r-optparse
+  - r-matrixstats
   - bioconductor-deseq2
   - bioconductor-tximport
   - bioconductor-tximeta
   - bioconductor-enhancedvolcano
   - bioconductor-apeglm
+  - bioconductor-ruvseq
+  - bioconductor-edger
+  - bioconductor-eeseq
