@@ -5,127 +5,136 @@
 From raw FASTQ files to differential expression results.
 
 **Core path:**  
-QC (FastQC/MultiQC) → Trimming (fastp) → Quantification (**Salmon** recommended or STAR + featureCounts) → Differential expression (**DESeq2**)
-
-Designed to be modular, well-documented, and easy to adapt for human or mouse experiments.
+**QC** (FastQC / MultiQC + read-count checks) → Trimming (fastp) → Quantification (**Salmon** or STAR) → **Spike-in QC & optional normalization** → Differential expression (**DESeq2**)
 
 ---
 
 ## Pipeline Overview
 
 ```
-1. Quality Control
-   FastQC → MultiQC report
+1. Quality Control (enhanced)
+   • FastQC on raw (and optionally trimmed) reads
+   • MultiQC HTML report
+   • Per-sample read-count warnings
+   • Spike-in recovery metrics (when enabled)
 
 2. Adapter & quality trimming
-   fastp (fast and accurate)
+   fastp
 
-3. Quantification (choose one)
-   A. Salmon (alignment-free, recommended – fast + isoform-aware)
-   B. STAR alignment + featureCounts (classic alignment-based)
+3. Quantification
+   A. Salmon (alignment-free, recommended)
+   B. STAR + featureCounts
 
-4. Differential Expression
-   tximport (if Salmon) → DESeq2
-   Results tables, MA/volcano plots, PCA
+4. Spike-in handling (optional)
+   • ERCC or custom spike-ins
+   • Recovery & dose-response QC
+   • Optional size-factor or RUVg normalization
 
-5. Optional downstream
-   Pathway enrichment, custom contrasts, batch correction
+5. Differential Expression
+   tximport → DESeq2 (with LFC shrinkage)
+   PCA, volcano, results tables
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Install
-
 ```bash
 git clone https://github.com/gigi777mo/rnaseq-pipeline.git
 cd rnaseq-pipeline
 
-# Create environment
 conda env create -f environment.yml
 conda activate rnaseq
 
-# Optional: install Snakemake if you want the full workflow manager
-conda install -c bioconda -c conda-forge snakemake
-```
+# Edit config/config.yaml and data/samples.csv
+# Place paired-end FASTQs in data/raw/
 
-### 2. Prepare your data
-
-```
-data/
-├── raw/                  # place paired-end FASTQ files here
-│   ├── sample1_R1.fastq.gz
-│   ├── sample1_R2.fastq.gz
-│   ├── sample2_R1.fastq.gz
-│   └── ...
-├── samples.csv           # sample metadata (see example)
-└── config/
-    └── config.yaml         # pipeline parameters
-```
-
-Edit `data/samples.csv` and `config/config.yaml`.
-
-### 3. Run
-
-**Option A – Snakemake (recommended for full automation)**
-```bash
 snakemake --cores 8 --use-conda
 ```
 
-**Option B – Step-by-step scripts**
+Or run steps manually:
+
 ```bash
-# QC
-python scripts/run_qc.py --input data/raw --out results/qc
-
-# Trim
+python scripts/run_qc.py --input data/raw --out results/qc --stage raw
 python scripts/run_trim.py --input data/raw --out results/trimmed
-
-# Quantify with Salmon
-python scripts/run_salmon.py --input results/trimmed --index /path/to/salmon_index --out results/salmon
-
-# Differential expression
-Rscript scripts/deseq2_analysis.R --counts results/salmon --samples data/samples.csv --out results/deseq2
+python scripts/run_salmon.py --input results/trimmed --index /path/to/index --out results/salmon
+python scripts/run_qc.py --input results/trimmed --out results/qc --stage trimmed \
+    --salmon-dir results/salmon --samples data/samples.csv   # includes spike-in QC if present
+Rscript scripts/deseq2_analysis.R --salmon_dir results/salmon --samples data/samples.csv --out results/deseq2
 ```
 
 ---
 
-## Configuration
+## Quality Control (enhanced)
 
-### `data/samples.csv`
+The QC module now provides:
 
-```csv
-sample,condition,batch,replicate
-control_1,control,1,1
-control_2,control,1,2
-treated_1,treated,1,1
-treated_2,treated,1,2
-```
+| Check | Description |
+|-------|-------------|
+| FastQC | Per-base quality, adapter content, duplication, GC, etc. |
+| MultiQC | Single interactive HTML report aggregating all samples |
+| Read-count warning | Flags samples below a configurable minimum number of reads |
+| Spike-in metrics | Fraction of reads on spike-ins, number detected, recovery plot |
 
-### `config/config.yaml` (key options)
+Configuration (`config/config.yaml`):
 
 ```yaml
-genome: human                 # human or mouse
-quantifier: salmon            # salmon or star
-fdr_cutoff: 0.05
-lfc_cutoff: 1.0               # log2 fold-change threshold for plots
-design: "~ condition"         # DESeq2 design formula
-
-resources:
-  threads: 8
-  memory_gb: 32
+qc:
+  run_fastqc: true
+  run_multiqc: true
+  min_reads: 1000000
+  min_mapping_rate: 0.5
 ```
 
 ---
 
-## Quantification Choices
+## Spike-in Support (ERCC or custom)
 
-| Method | Pros | Cons | When to use |
-|--------|------|------|-------------|
-| **Salmon** | Very fast, low memory, isoform-aware, recommended by DESeq2 authors | Transcript-level first | Most modern bulk RNA-seq |
-| **STAR + featureCounts** | Gold-standard alignment, good for variant-aware or novel transcript work | High RAM (human genome ~30–40 GB), slower | When you need BAM files or junction info |
+Enable in `config/config.yaml`:
 
-This pipeline supports both. Salmon is the default recommendation.
+```yaml
+spikein:
+  enabled: true
+  type: ERCC
+  fasta: "/path/to/ERCC92.fa"
+  concentration_table: "data/ERCC_Controls_Analysis.txt"   # optional
+  normalization: none          # none | size_factor | ruvg
+  id_prefix: "ERCC-"
+```
+
+**What you get:**
+
+- Spike-in transcripts quantified together with endogenous genes (index must contain them)
+- `results/qc/spikein_metrics.csv` – per-sample recovery summary
+- `results/qc/spikein_fraction.pdf` – visual QC
+- Optional dose-response plot when a concentration table is supplied
+- Optional alternative normalization (spike-in size factors or RUVg)
+
+Full documentation: **[docs/spikein.md](docs/spikein.md)**
+
+> **Recommendation:** Use spike-ins primarily for QC. Standard DESeq2 median-of-ratios normalization is still preferred for most experiments unless you expect large global changes in RNA content.
+
+---
+
+## Configuration highlights
+
+```yaml
+genome: human
+quantifier: salmon              # or star
+
+qc:
+  min_reads: 1000000
+
+spikein:
+  enabled: false                # turn on when you have ERCC/custom spike-ins
+  normalization: none
+
+deseq2:
+  design: "~ condition"
+  reference_level: "control"
+  fdr_cutoff: 0.05
+  lfc_cutoff: 1.0
+```
 
 ---
 
@@ -134,93 +143,51 @@ This pipeline supports both. Salmon is the default recommendation.
 ```
 results/
 ├── qc/
-│   └── multiqc_report.html
+│   ├── multiqc_report.html
+│   ├── spikein_metrics.csv      # when spike-ins enabled
+│   └── spikein_fraction.pdf
 ├── trimmed/
-├── quant/                 # Salmon quant or STAR BAMs + counts
+├── salmon/   (or star/)
 ├── deseq2/
-│   ├── results.csv         # full DE table
-│   ├── significant.csv     # filtered by FDR + LFC
+│   ├── results.csv
+│   ├── significant.csv
 │   ├── pca.pdf
 │   ├── volcano.pdf
-│   ├── ma_plot.pdf
 │   └── normalized_counts.csv
 └── logs/
 ```
 
 ---
 
-## Reference Index
+## Building an index with spike-ins
 
-You need a transcriptome (Salmon) or genome index (STAR).
-
-**Salmon (recommended):**
 ```bash
-# Download transcriptome (example GENCODE human)
-wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.transcripts.fa.gz
-
-salmon index -t gencode.v44.transcripts.fa.gz -i salmon_index --gencode -p 8
+# Example for Salmon + ERCC
+cat gencode.v44.transcripts.fa.gz <(bgzip -c ERCC92.fa) > tx_plus_ERCC.fa.gz
+salmon index -t tx_plus_ERCC.fa.gz -i salmon_index_ERCC --gencode -p 8
 ```
 
-**STAR:**
-```bash
-STAR --runMode genomeGenerate \
-  --genomeDir star_index \
-  --genomeFastaFiles genome.fa \
-  --sjdbGTFfile genes.gtf \
-  --runThreadN 8
-```
-
-Update the path in `config/config.yaml`.
+Then set `salmon_index` in the config to this new index.
 
 ---
 
-## Directory Structure
+## Tips
 
-```
-rnaseq-pipeline/
-├── README.md
-├── environment.yml
-├── config/
-│   └── config.yaml
-├── data/
-│   ├── samples.csv.example
-│   └── raw/                 # your FASTQs go here
-├── workflow/
-│   └── Snakefile
-├── scripts/
-│   ├── run_qc.py
-│   ├── run_trim.py
-│   ├── run_salmon.py
-│   ├── run_star.py
-│   ├── deseq2_analysis.R
-│   └── utils.py
-├── docs/
-│   └── design_and_contrasts.md
-└── results/                 # generated
-```
-
----
-
-## Tips for Good Results
-
-- Use biological replicates (≥3 per group recommended).
-- Check the MultiQC report before proceeding to DE.
-- For Salmon → DESeq2, use **tximport** (already handled in the R script).
-- Include `batch` in the design formula if you have known batch effects: `~ batch + condition`.
-- Always examine PCA and sample distance heatmaps for outliers.
-- Report both FDR and log2 fold-change thresholds.
+- Always inspect the MultiQC report before differential expression.
+- ≥3 biological replicates per group is strongly recommended.
+- Include `batch` in the design formula when appropriate: `~ batch + condition`.
+- Spike-ins are excellent for diagnosing global effects; use them for normalization only when biologically justified.
 
 ---
 
 ## Citation
 
-If you use this pipeline, please cite the underlying tools:
-
-- **Salmon** — Patro et al., Nat Methods 2017
-- **DESeq2** — Love, Huber, Anders, Genome Biol 2014
-- **STAR** — Dobin et al., Bioinformatics 2013
-- **fastp** — Chen et al., Bioinformatics 2018
-- **tximport** — Soneson et al., F1000Research 2015
+- Salmon — Patro et al., Nat Methods 2017
+- DESeq2 — Love et al., Genome Biol 2014
+- STAR — Dobin et al., Bioinformatics 2013
+- fastp — Chen et al., Bioinformatics 2018
+- tximport — Soneson et al., F1000Research 2015
+- ERCC spike-ins — External RNA Controls Consortium
 
 ---
 

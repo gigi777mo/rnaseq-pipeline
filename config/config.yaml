@@ -5,12 +5,37 @@ genome: human                    # human or mouse
 quantifier: salmon               # salmon (recommended) or star
 
 # Paths (update these)
-salmon_index: "/path/to/salmon_index"
+salmon_index: "/path/to/salmon_index"   # should include spike-ins if used
 star_index: "/path/to/star_index"
-gtf: "/path/to/genes.gtf"        # needed for STAR + featureCounts and annotation
+gtf: "/path/to/genes.gtf"
 
 # Sample sheet
 samples: "data/samples.csv"
+
+# ---------- Quality Control ----------
+qc:
+  run_fastqc: true
+  run_multiqc: true
+  # Additional QC metrics
+  check_rrna: false              # set true if you have rRNA depletion metrics
+  min_reads: 1000000             # warn if sample has fewer reads than this
+  min_mapping_rate: 0.5          # warn if alignment/quant rate below this (0-1)
+
+# ---------- Spike-in controls ----------
+spikein:
+  enabled: false                 # set to true to activate spike-in features
+  type: ERCC                     # ERCC (most common) or custom
+  # Path to spike-in sequences (FASTA). For ERCC use the official Thermo/Ambion file.
+  fasta: "/path/to/ERCC92.fa"
+  # Concentration / mix info (optional, for dose-response QC plots)
+  # Official ERCC mix files can be placed here for expected abundance checks
+  concentration_table: ""        # e.g. data/ERCC_Controls_Analysis.txt
+  # How to use spike-ins for normalization
+  normalization: none            # options: none | size_factor | ruvg
+  # For RUVg: number of negative control spike-ins to use as empirical controls
+  ruvg_k: 1
+  # Prefix used to identify spike-in transcripts in quant files (ERCC-#####)
+  id_prefix: "ERCC-"
 
 # Trimming (fastp)
 fastp:
@@ -30,10 +55,10 @@ star:
 # DESeq2
 deseq2:
   design: "~ condition"          # e.g. "~ batch + condition"
-  reference_level: "control"     # reference level for the condition factor
+  reference_level: "control"
   fdr_cutoff: 0.05
-  lfc_cutoff: 1.0                # |log2FC| threshold for calling significant
-  min_counts: 10                 # genes must have at least this many counts in total
+  lfc_cutoff: 1.0
+  min_counts: 10
 
 # Resources
 resources:
